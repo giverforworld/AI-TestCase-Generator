@@ -94,7 +94,7 @@ git diff ─┬─▶ [1단계] 영향도 분석가 ── JSON ──┐
 - **중간 검토 지점** — 1단계 결과(위험도·영향 영역)를 화면에 먼저 보여주고, 사람이 확인한 뒤 2단계를 실행한다.
 - **실패해도 멈추지 않는 파싱** — `utils/json-extract.util.ts`. 파싱에 실패하면 원문 앞부분을 요약에 남겨 사람이 판단할 수 있게 한다.
 - **형식 강제** — TC 번호·우선순위·관련 영역을 고정 포맷으로 요구해, 누락이 눈에 띄게 한다.
-- **입력 한도** — diff 를 단계별로 자른다(15,000 / 10,000자). 대규모 PR 은 나눠서 분석하도록 안내한다.
+- **입력 한도** — diff 를 단계별로 자른다(15,000 / 10,000자).
 - **오류를 사람 말로** — 크레딧 부족·인증 실패·429 를 한국어 안내로 바꾼다 (`utils/claude-error.util.ts`).
 
 ---
@@ -377,7 +377,8 @@ testplanner/
 | `POST` | `/api/testcase/generate` | TC 생성 (SSE 스트리밍) | `{ diff, analysis, projectName, compareSummary, model }` |
 | `POST` | `/api/testcase/save` | MD 파일 저장 | `{ content, diff, analysis, projectName, compareSummary }` |
 | `POST` | `/api/testcase/save-pdf` | PDF 파일 저장 | `{ content, projectName }` |
-| `POST` | `/api/testcase/export-pdf` | PDF 즉시 다운로드 (서버 저장 없음) | `{ content, projectName }` |
+| `POST` | `/api/testcase/pdf-download` | PDF 즉시 다운로드 (서버 저장 없음) | `{ content, projectName }` |
+| `GET` | `/api/testcase/list` | 저장된 MD / PDF 목록 | - |
 | `GET` | `/api/testcase/download/:filename` | MD / PDF 파일 다운로드 | - |
 
 ### SSE 스트리밍 이벤트 형식
@@ -398,7 +399,7 @@ data: {"type": "error", "error": "오류 메시지"}
 
 | 이벤트 type | 의미 |
 |-------------|------|
-| `header` | 보고서 상단 고정 텍스트 (KT Codi 모델만 전송) |
+| `header` | 보고서 상단 고정 텍스트 (1~2절: 문서 정보 · 영향도 분석) |
 | `delta` | TC 본문 조각, 연속 전송 |
 | `done` | 스트림 종료 + 토큰 사용량 |
 | `error` | 오류 발생 시 |
@@ -434,12 +435,6 @@ data: {"type": "error", "error": "오류 메시지"}
 | **KT AI Codi** | - | - | 사내 환경 |
 
 가격은 [Anthropic 공식 가격표](https://www.anthropic.com/pricing#api)를 따른다.
-
-------|------|------|-----------|-----------|----------|
-| **Haiku 4.5** | 빠름 | 보통 | $0.80 / 1M 토큰 | $4 / 1M 토큰 | 빠른 초안 확인, 비용 절감 |
-| **Sonnet 4.6** | 보통 | 좋음 | $3 / 1M 토큰 | $15 / 1M 토큰 | 일반 업무용 (기본 추천) |
-| **Opus 4.6** | 느림 | 최고 | $15 / 1M 토큰 | $75 / 1M 토큰 | 복잡한 레거시 코드 심층 분석 |
-| **KT AI Codi** | - | - | 별도 계약 | 별도 계약 | KT 내부 환경 |
 
 ---
 

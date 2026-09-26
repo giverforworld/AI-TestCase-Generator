@@ -1,4 +1,4 @@
-import { ClaudeModelId } from './claude.service'
+import { ClaudeService, ClaudeModelId, ClaudeAnthropicModelId, DEFAULT_MODEL } from './claude.service'
 import { FileService } from './file.service'
 import { GitDiffResult, ImpactAnalysis } from '../types'
 import { buildReportHeader, buildReportFooter } from '../utils/markdown.util'
@@ -7,9 +7,11 @@ import { Response } from 'express'
 
 export class TestCaseService {
   private fileService: FileService
+  private claudeService: ClaudeService
 
   constructor() {
     this.fileService = new FileService()
+    this.claudeService = new ClaudeService()
   }
 
   async generateStream(
@@ -18,17 +20,21 @@ export class TestCaseService {
     res: Response,
     projectName?: string,
     compareSummary?: string,
-    _model?: ClaudeModelId,
-    _projectContextDocument?: string
+    model?: ClaudeModelId,
+    projectContextDocument?: string
   ): Promise<void> {
-    // 권고사항을 "3. 테스트케이스"에 넣은 완성 보고서를 한 번에 전송 (AI 호출 없음)
-    const header = buildReportHeader(diff, analysis, projectName, compareSummary || '')
-    const footer = buildReportFooter()
-    const fullReport = header + footer
-
-    res.write(`data: ${JSON.stringify({ type: 'header', text: fullReport })}\n\n`)
-    res.write(`data: ${JSON.stringify({ type: 'done', usage: { inputTokens: 0, outputTokens: 0 } })}\n\n`)
-    res.end()
+    // 1단계 영향도 분석 결과를 근거로 Claude 가 "3. 테스트케이스" 를 스트리밍으로 작성한다.
+    // (KT AI Codi 는 컨트롤러에서 별도 서비스로 분기되므로 여기 오는 모델은 Anthropic 모델뿐이다)
+    const anthropicModel = (model && model !== 'kt-ai-codi' ? model : DEFAULT_MODEL) as ClaudeAnthropicModelId
+    await this.claudeService.generateTestCasesStream(
+      diff,
+      analysis,
+      res,
+      projectName,
+      anthropicModel,
+      projectContextDocument,
+      compareSummary
+    )
   }
 
   async saveReport(

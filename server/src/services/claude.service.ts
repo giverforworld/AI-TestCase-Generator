@@ -4,6 +4,7 @@ import { GitDiffResult, ImpactAnalysis } from '../types'
 import { buildImpactAnalysisPrompt, buildTestCasePrompt } from '../utils/prompt.util'
 import { saveImpactPayload, saveTestcasePayload } from '../utils/log-payload.util'
 import { extractJsonFromLlmResponse } from '../utils/json-extract.util'
+import { buildReportHeaderBeforeAiTc, buildReportFooter } from '../utils/markdown.util'
 import { Response } from 'express'
 
 export const CLAUDE_MODELS = [
@@ -103,13 +104,18 @@ export class ClaudeService {
     }
   }
 
+  /**
+   * TC 생성: 보고서 상단(1~2절)은 고정 헤더로 먼저 보내고, 3절은 Claude 가 스트리밍으로 채운 뒤 푸터를 붙입니다.
+   * (KT AI Codi 경로와 같은 보고서 모양)
+   */
   async generateTestCasesStream(
     diff: GitDiffResult,
     analysis: ImpactAnalysis,
     res: Response,
     projectName?: string,
     model: ClaudeAnthropicModelId = 'claude-haiku-4-5-20251001',
-    projectContextDocument?: string
+    projectContextDocument?: string,
+    compareSummary?: string
   ): Promise<void> {
     const prompt = buildTestCasePrompt(diff, analysis, projectName, projectContextDocument)
 
@@ -125,6 +131,9 @@ export class ClaudeService {
       Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     })
+
+    const headerText = buildReportHeaderBeforeAiTc(diff, analysis, projectName, compareSummary ?? '')
+    res.write(`data: ${JSON.stringify({ type: 'header', text: headerText })}\n\n`)
 
     // 테스트케이스 섹션을 비우지 말고 반드시 본문을 채우도록 시스템 지시
     const systemInstruction = `You are a QA engineer writing test cases in Markdown. Your response will be inserted directly under the heading "## 3. 테스트케이스" in a report. Do NOT write "## 3. 테스트케이스" again. Start your response immediately with "### TC-001:" and write at least 5 full test cases (### TC-001 through ### TC-005 or more). End with "## 테스트 실행 체크리스트" and list items. Never output an empty section or only a title.`
@@ -153,6 +162,7 @@ export class ClaudeService {
       }
 
       if (!res.socket?.destroyed) {
+        res.write(`data: ${JSON.stringify({ type: 'delta', text: buildReportFooter() })}\n\n`)
         const finalMessage = await stream.finalMessage()
         const usage = finalMessage.usage
         res.write(
